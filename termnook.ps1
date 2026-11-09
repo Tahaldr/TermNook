@@ -1161,7 +1161,7 @@ function NookDashboard([string]$Style) {
 
 # ===========================================================================
 # Quick picker (plain `nook`): one row under the prompt, erased when done
-#   Herdr   Nvim   Player   VS Code    ←→ move  enter open  esc cancel
+#   Nvim   VS Code   Git   Files       ←→ move  enter open  esc cancel
 #           ━━━━  editor
 # ===========================================================================
 function NookQuick {

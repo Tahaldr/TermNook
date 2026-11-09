@@ -169,7 +169,7 @@ An `OpenWith` app without `Run` just goes to the folder.
 ### Prayer times
 
 ```powershell
-Prayer = @{ City = 'Casablanca'; Country = 'Morocco'; Method = 21 }
+Prayer = @{ City = 'London'; Country = 'United Kingdom'; Method = 3 }
 ```
 
 The times come from [aladhan.com](https://aladhan.com) once a month (saved in `prayer.json`). `Method`
