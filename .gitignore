@@ -1,0 +1,7 @@
+# your own settings and what TermNook saves while you use it: never uploaded, never touched by updates
+config.psd1
+my-*.txt
+recent.txt
+style.txt
+prayer.json
+*.bak
