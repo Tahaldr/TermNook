@@ -5,7 +5,8 @@
 # Load it from your profile:   . "$HOME\.termnook\termnook.ps1"
 # Then run:                    nook --help
 
-$script:NookVersion   = '1.0.0'
+$script:NookVersion   = '1.1.0'
+$script:NookRepo      = 'Tahaldr/TermNook'   # where releases are published
 $script:NookDir       = $PSScriptRoot
 $script:NookStateFile = Join-Path $PSScriptRoot 'style.txt'
 $script:NookStyles    = [ordered]@{ cards = 'Card row'; info = 'Info panel'; palette = 'Command palette'; list = 'Classic list' }
@@ -71,6 +72,7 @@ function NookCursor([bool]$visible) { try { [Console]::CursorVisible = $visible 
 # ===========================================================================
 
 function NookLoad([switch]$Force) {
+    NookCheckUpdateStart
     $cfgPath = Join-Path $script:NookDir 'config.psd1'
     if (-not (Test-Path -LiteralPath $cfgPath)) {
         $example = Join-Path $script:NookDir 'config.example.psd1'
@@ -511,6 +513,7 @@ function NookBrowseItems($C, [string]$text) {
 # and the input at the bottom with a grey suggestion. Returns @{ Path; File; App } or $null.
 # ===========================================================================
 function NookPickProject($C) {
+    $ask = $null   # "create this path?" waiting for y / n
     [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
     $K = $C.K; $e = [char]27; $openers = @($C.Projects.OpenWith)
     if (-not $openers.Count) { Write-Host 'nook: Projects.OpenWith in config.psd1 has no apps' -ForegroundColor Red; return $null }
@@ -609,6 +612,7 @@ function NookPickProject($C) {
                 }
                 $kl = "   $($K.Mut)$($keys -join '   ')"
                 if ($note) { $kl = "   $($K.Err)$note$($K.Mut)   $($keys -join '   ')"; $note = '' }
+                if ($ask) { $kl = "   $($K.Hot)Create the $($ask.Kind) $($ask.Path)?$($K.R)   $($K.Txt)y$($K.Mut) yes   $($K.Txt)n$($K.Mut) / $($K.Txt)esc$($K.Mut) no" }
                 [void]$fr.Append("$e[$row;1H").Append((NookCut $kl $W))
                 [Console]::Write($fr.ToString())
                 $lastW = $W; $lastH = $H; $dirty = $false
@@ -643,7 +647,24 @@ function NookPickProject($C) {
                     $opener = $null
                     if ($alt) { $letter = ([string][char]$vk).ToLower(); $opener = $others | Where-Object { $_.Key -eq $letter } | Select-Object -First 1 }
 
-                    if ($vk -eq 0x27 -and $ctrl) { $focus = 'preview' }                     # ctrl+right: into the preview
+                    if ($ask) {
+                        # "Create the folder ...?"  y makes it (with every missing folder on the way) and opens it
+                        if ($ch -eq 'y' -or $ch -eq 'Y' -or $vk -eq 0x0D) {
+                            try {
+                                if ($ask.Kind -eq 'file') {
+                                    New-Item -ItemType Directory -Force (Split-Path $ask.Path -Parent) | Out-Null
+                                    New-Item -ItemType File -Force $ask.Path | Out-Null
+                                    $result = @{ Path = (Split-Path $ask.Path -Parent); File = $ask.Path; App = $ask.App }
+                                } else {
+                                    New-Item -ItemType Directory -Force $ask.Path | Out-Null
+                                    $result = @{ Path = $ask.Path; File = $null; App = $ask.App }
+                                }
+                                $done = $true
+                            } catch { $note = "couldn't create it: $($_.Exception.Message)" }
+                        }
+                        $ask = $null
+                    }
+                    elseif ($vk -eq 0x27 -and $ctrl) { $focus = 'preview' }                     # ctrl+right: into the preview
                     elseif ($vk -eq 0x25 -and $ctrl) { $focus = 'list' }                    # ctrl+left: back to the list
                     elseif ($focus -eq 'preview' -and $vk -in 0x26, 0x28, 0x21, 0x22, 0x24, 0x23, 0x25, 0x1B) {
                         switch ($vk) {
@@ -675,7 +696,12 @@ function NookPickProject($C) {
                             if ([IO.File]::Exists($path)) { $file = $path; $path = Split-Path $path -Parent }
                             $result = @{ Path = $path; File = $file; App = $app }
                             $done = $true
-                        } elseif ($target) { $note = 'not found' }
+                        } elseif ($target) {
+                            # it doesn't exist yet: offer to create it (a name with an extension is a file, the rest folders)
+                            $leafName = Split-Path $target.TrimEnd('\') -Leaf
+                            $kind = if ($text -match '[\\/]$' -or -not ($leafName -match '.\.[^.\\]+$')) { 'folder' } else { 'file' }
+                            $ask = @{ Path = $target.TrimEnd('\'); Kind = $kind; App = $(if ($opener) { $opener } else { $first }) }
+                        }
                     }
                     elseif (-not $alt -and -not $ctrl -and $ch -and -not [char]::IsControl($ch)) { $text += $ch; $sel = 0; $top = 0; $focus = 'list' }
                 }
@@ -1062,6 +1088,8 @@ function NookDashboard([string]$Style) {
                     $foot.AddRange([string[]]@(NookBlock $pbox.Lines $W)); $foot.Add('')
                 } elseif ($Style -ne 'info') { $foot.AddRange([string[]]@(NookBlock @("$($K.Mut)$date$($K.R)") $W)) }
                 $foot.AddRange([string[]]@(NookBlock @("$($K.Mut)$help   $($K.Hot)$hot$($K.R)") $W))
+                $nv = NookNewVersion
+                if ($nv) { $foot.AddRange([string[]]@(NookBlock @("$($K.Hot)$([char]0x2191) TermNook $nv is out$($K.Mut): run  $($K.Txt)nook update$($K.Mut)  (your settings stay)$($K.R)") $W)) }
                 if ($C.Warnings.Count) {
                     $msg = "config: $($C.Warnings[0])$(if ($C.Warnings.Count -gt 1) { "  (+$($C.Warnings.Count - 1) more, see nook --help)" })"
                     $foot.AddRange([string[]]@(NookBlock @("$($K.Err)$msg$($K.R)") $W))
@@ -1258,6 +1286,7 @@ function NookHelp {
         "    $($t)nook salat$r              $m today's prayer times and the next one, right under the prompt$r"
         "    $($t)nook -reload$r            $m re-read config.psd1 and the logo now$r"
         "    $($t)nook update$r             $m get the newest TermNook (your settings stay as they are)$r"
+        "    $($t)nook update --check$r     $m only check whether there's a newer version$r"
         "    $($t)nook config$r             $m open config.psd1 in your editor$r"
         "    $($t)nook --version$r          $m show the version$r"
         "    $($t)nook -h$r, $($t)--help$r          $m show this help$r"
@@ -1294,22 +1323,99 @@ function NookHelp {
 # nook update / nook config
 # ===========================================================================
 
-# nook update: a git clone is updated with git pull; your config.psd1 and other files aren't tracked, so they stay
-function NookUpdate {
-    $dir = $script:NookDir
-    if (-not (Test-Path -LiteralPath (Join-Path $dir '.git'))) {
-        Write-Host "nook: this copy isn't a git clone, so it can't update itself." -ForegroundColor Yellow
-        Write-Host "      Download the newest termnook.ps1 from https://github.com/Tahaldr/TermNook and put it in $dir" -ForegroundColor DarkGray
-        Write-Host "      (only termnook.ps1: your config.psd1 stays)." -ForegroundColor DarkGray
-        return
+# ---- updates: releases on GitHub ----
+# TermNook looks for a newer release at most once a day, in the background, and the dashboard says
+# when one is out. `nook update` installs it: git clones pull it, other copies download it.
+# Only the program's files are replaced: config.psd1, my-*.txt and saved files are never touched.
+
+$script:NookUpdateFile = Join-Path $PSScriptRoot 'update.json'
+$script:NookUpdateTask = $null
+
+function NookNewer([string]$a, [string]$b) {
+    $pa = @(($a.TrimStart('v') -split '[-+]')[0] -split '\.' | ForEach-Object { [int]$_ }) + 0, 0, 0
+    $pb = @(($b.TrimStart('v') -split '[-+]')[0] -split '\.' | ForEach-Object { [int]$_ }) + 0, 0, 0
+    for ($i = 0; $i -lt 3; $i++) { if ($pa[$i] -ne $pb[$i]) { return $pa[$i] -gt $pb[$i] } }
+    $false
+}
+
+function NookLatestRelease {
+    $h = @{ 'User-Agent' = "termnook/$($script:NookVersion)"; Accept = 'application/vnd.github+json' }
+    Invoke-RestMethod -Uri "https://api.github.com/repos/$($script:NookRepo)/releases/latest" -Headers $h -TimeoutSec 15
+}
+
+# start the daily check without waiting for it
+function NookCheckUpdateStart {
+    if ($script:NookUpdateTask) { return }
+    try {
+        if (Test-Path -LiteralPath $script:NookUpdateFile) {
+            $u = Get-Content -LiteralPath $script:NookUpdateFile -Raw | ConvertFrom-Json
+            if (([datetime]::UtcNow - [datetime]$u.at).TotalHours -lt 24) { return }
+        }
+        $client = [System.Net.Http.HttpClient]::new()
+        $client.Timeout = [TimeSpan]::FromSeconds(10)
+        $client.DefaultRequestHeaders.UserAgent.ParseAdd("termnook/$($script:NookVersion)")
+        $script:NookUpdateTask = $client.GetStringAsync("https://api.github.com/repos/$($script:NookRepo)/releases/latest")
+    } catch {}
+}
+
+# the newer version, if there is one ('' if not, or not known yet)
+function NookNewVersion {
+    $t = $script:NookUpdateTask
+    if ($t -and $t.IsCompleted) {
+        $script:NookUpdateTask = $null
+        try {
+            if ($t.Status -eq 'RanToCompletion') {
+                $tag = ($t.Result | ConvertFrom-Json).tag_name
+                @{ at = [datetime]::UtcNow.ToString('o'); latest = $tag } | ConvertTo-Json | Set-Content -LiteralPath $script:NookUpdateFile -Encoding utf8
+            }
+        } catch {}
     }
-    $before = git -C $dir rev-parse HEAD 2>$null
-    $out = git -C $dir pull --ff-only 2>&1
-    if ($LASTEXITCODE -ne 0) { Write-Host "nook: update failed: $out" -ForegroundColor Red; return }
-    if ((git -C $dir rev-parse HEAD 2>$null) -eq $before) { Write-Host "nook: you have the newest version ($($script:NookVersion))." -ForegroundColor DarkGray; return }
+    try {
+        if (Test-Path -LiteralPath $script:NookUpdateFile) {
+            $u = Get-Content -LiteralPath $script:NookUpdateFile -Raw | ConvertFrom-Json
+            if ($u.latest -and (NookNewer $u.latest $script:NookVersion)) { return $u.latest.TrimStart('v') }
+        }
+    } catch {}
+    ''
+}
+
+# the files that are the program (everything else in the folder is yours)
+$script:NookProgramFiles = @('termnook.ps1', 'config.example.psd1', 'logo.txt', 'install.ps1', 'README.md', 'LICENSE', '.gitignore')
+
+function NookUpdate([switch]$Check) {
+    $dir = $script:NookDir
+    Write-Host 'nook: looking for a newer TermNook…' -ForegroundColor DarkGray
+    try { $rel = NookLatestRelease } catch { Write-Host "nook: couldn't reach GitHub: $($_.Exception.Message)" -ForegroundColor Red; return }
+    @{ at = [datetime]::UtcNow.ToString('o'); latest = $rel.tag_name } | ConvertTo-Json | Set-Content -LiteralPath $script:NookUpdateFile -Encoding utf8
+    $new = $rel.tag_name.TrimStart('v')
+    if (-not (NookNewer $rel.tag_name $script:NookVersion)) { Write-Host "nook: you have the newest version ($($script:NookVersion))." -ForegroundColor DarkGray; return }
+    Write-Host "nook: TermNook $new is out (you have $($script:NookVersion)). What's new: $($rel.html_url)" -ForegroundColor Green
+    if ($Check) { Write-Host 'nook: run  nook update  to get it.' -ForegroundColor DarkGray; return }
+
+    if (Test-Path -LiteralPath (Join-Path $dir '.git')) {
+        # a git clone: pull (only the program's files are tracked, so your files can't be touched)
+        $out = git -C $dir pull --ff-only 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Host "nook: update failed: $out" -ForegroundColor Red; return }
+    } else {
+        # downloaded copy: get the release zip and replace only the program's files
+        $asset = @($rel.assets | Where-Object name -eq 'termnook.zip')[0]
+        $url = if ($asset) { $asset.browser_download_url } else { $rel.zipball_url }
+        $tmp = Join-Path ([IO.Path]::GetTempPath()) "termnook-$new"
+        try {
+            Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Force $tmp | Out-Null
+            Invoke-WebRequest -Uri $url -OutFile "$tmp\t.zip" -Headers @{ 'User-Agent' = 'termnook' } -TimeoutSec 120
+            Expand-Archive "$tmp\t.zip" -DestinationPath "$tmp\x" -Force
+            $src = (Get-ChildItem "$tmp\x" -Recurse -Filter termnook.ps1 | Select-Object -First 1).DirectoryName
+            if (-not $src) { throw 'the download has no termnook.ps1' }
+            foreach ($f in $script:NookProgramFiles) {
+                if (Test-Path -LiteralPath (Join-Path $src $f)) { Copy-Item -LiteralPath (Join-Path $src $f) -Destination (Join-Path $dir $f) -Force }
+            }
+        } catch { Write-Host "nook: update failed: $($_.Exception.Message)" -ForegroundColor Red; return }
+        finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
+    }
     . (Join-Path $dir 'termnook.ps1')   # load the new version right away
     Write-Host "nook: updated to $($script:NookVersion). Your settings weren't touched." -ForegroundColor Green
-    git -C $dir log --oneline "$before..HEAD" 2>$null | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
 }
 
 function NookEditConfig {
@@ -1327,13 +1433,14 @@ function nook([switch]$Dashboard, [string]$Style, [switch]$Reload, [switch]$Help
     $rest = @($args)
     if ($Style -like '-*' -or $Style -like '/*') { $rest = @($Style) + $rest; $Style = '' }
     if ($Style -in 'salat', 'prayer') { $Salat = $true; $Style = '' }   # nook salat
-    if ($Style -in 'update', 'upgrade') { NookUpdate; return }
+    if ($Style -in 'update', 'upgrade') { NookUpdate -Check:($rest -contains '--check' -or $rest -contains 'check'); return }
     if ($Style -in 'config', 'settings') { NookEditConfig; return }
     if ($Style -eq 'version') { "TermNook $($script:NookVersion)"; return }
     foreach ($a in $rest) {
         switch -Regex ($a) {
             '^--?help$|^/\?$' { $Help = $true }
             '^--?version$|^-v$' { "TermNook $($script:NookVersion)"; return }
+            '^--?check$|^check$' { }
             '^--dashboard$'   { $Dashboard = $true }
             '^--reload$'      { $Reload = $true }
             '^--projects$'    { $Projects = $true }

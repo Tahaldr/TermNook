@@ -81,14 +81,18 @@ Open a new tab and run `nook --help`. The first time, TermNook copies `config.ex
 ## Update
 
 ```powershell
-nook update
+nook update            # install the newest release
+nook update --check    # only tell me if there's a newer one
 ```
 
-It pulls the newest version (git clone installs) and loads it right away. **Your settings are never
-touched**: `config.psd1`, your own logo and everything TermNook saves (`recent.txt`, `style.txt`,
-`prayer.json`) aren't part of the program, so an update can't overwrite them. Without git, download the
-new `termnook.ps1` and replace only that file. New settings added in later versions get their default
-until you add them to your `config.psd1` (`config.example.psd1` always lists every setting).
+TermNook checks for a new release at most once a day (in the background) and the dashboard shows
+**↑ TermNook x.y.z is out** when there is one. `nook update` installs it right away: git clones pull
+it, other copies download the release and replace only the program's files.
+
+**Your settings are never touched**: `config.psd1`, your own logos (`my-*.txt`) and everything TermNook
+saves (`recent.txt`, `style.txt`, `prayer.json`, `update.json`) aren't part of the program, so an update
+can't overwrite them. New settings added in later versions get their default until you add them to your
+`config.psd1` (`config.example.psd1` always lists every setting).
 
 ## Use it
 
@@ -101,7 +105,7 @@ until you add them to your `config.psd1` (`config.example.psd1` always lists eve
 | `nook salat` | prayer times (when set up) |
 | `nook config` | open your settings in your editor (`$env:EDITOR`, else Nvim, VS Code or Notepad) |
 | `nook -reload` | read the settings again now (it also notices changes by itself) |
-| `nook update` | get the newest version |
+| `nook update` | install the newest release (`--check` only checks) |
 | `nook --version`, `nook --help` | version, all of this |
 
 ## Configure
@@ -154,7 +158,7 @@ Projects = @{
 }
 ```
 
-In the project picker, type a name or a path: `→` accepts the grey suggestion, `tab` lists what's
+In the project picker, type a name or a path. A path that doesn't exist yet is offered to be created (`y`): a name with an extension (`notes.md`) becomes a file, anything else a folder, with every missing folder on the way. Then: `→` accepts the grey suggestion, `tab` lists what's
 inside, `enter` opens the project in the first `OpenWith` app and `alt` + a key opens it in another.
 An `OpenWith` app without `Run` just goes to the folder.
 
@@ -196,7 +200,7 @@ All in the TermNook folder (`~\.termnook`):
 | `install.ps1`, `README.md`, `LICENSE` | | yes |
 | `config.psd1` | **your settings** | never |
 | `my-*.txt` | your own logo(s) | never |
-| `style.txt`, `recent.txt`, `prayer.json` | saved while you use it | never |
+| `style.txt`, `recent.txt`, `prayer.json`, `update.json` | saved while you use it | never |
 
 ## Uninstall
 
