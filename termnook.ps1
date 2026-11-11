@@ -531,6 +531,9 @@ function NookPickProject($C) {
     $text = ''; $sel = 0; $top = 0; $pscroll = 0; $cache = @{}; $lastPath = ''
     $itemsKey = $null; $items = @(); $isBrowse = $false
     $note = ''; $result = $null; $dirty = $true; $lastW = 0; $lastH = 0; $focus = 'list'
+    # typed path ending in \ and nothing picked yet (arrows / tab / mouse pick): enter opens that folder itself
+    $picked = $false
+    $typedDir = { if ($text -and -not $picked -and $text -match '[\\/]$') { $p = NookResolvePath $C $text; if ([IO.Directory]::Exists($p)) { $p } } }
     if (-not (NookInputLoad)) { Write-Host 'nook: could not set up keyboard/mouse input for the picker' -ForegroundColor Red; return $null }
     # alternate screen, no autowrap (a too-long line is cut at the edge instead of pushing the screen)
     [Console]::Write("$e[?1049h$e[?7l"); NookCursor $false
@@ -547,7 +550,8 @@ function NookPickProject($C) {
                     $itemsKey = $text
                 }
                 if ($sel -ge $items.Count) { $sel = [Math]::Max(0, $items.Count - 1) }
-                $cur = if ($items.Count) { $items[$sel] } else { $null }
+                $typed = & $typedDir
+                $cur = if ($typed) { $null } elseif ($items.Count) { $items[$sel] } else { $null }
 
                 # grey suggestion: the rest of the highlighted entry
                 $ghost = if ($cur -and $text -and $cur.Rel.StartsWith($text, [StringComparison]::OrdinalIgnoreCase)) { $cur.Rel.Substring($text.Length) } else { '' }
@@ -558,7 +562,7 @@ function NookPickProject($C) {
                 if ($sel -lt $top) { $top = $sel }
                 if ($sel -ge $top + $bodyH) { $top = $sel - $bodyH + 1 }
 
-                $prevPath = if ($cur) { $cur.Abs } else { '' }
+                $prevPath = if ($typed) { $typed } elseif ($cur) { $cur.Abs } else { '' }
                 if ($prevPath -ne $lastPath) { $pscroll = 0; $lastPath = $prevPath }
                 $prev = if ($prevPath) { @(NookPreview $prevPath $cache) } else { @() }
                 $pscroll = [Math]::Max(0, [Math]::Min($pscroll, $prev.Count - $bodyH))
@@ -567,7 +571,7 @@ function NookPickProject($C) {
                 $fr = [System.Text.StringBuilder]::new()
                 $row = 1
                 $lt = if ($isBrowse) { $d = ($text -replace '/', '\'); $d = $d.Substring(0, $d.LastIndexOf('\') + 1); if ($d) { $d } else { (Split-Path $base -Leaf) + '\' } } else { 'recent projects' }
-                $pt = if ($cur) { if ($cur.IsDir) { 'folder' } else { 'file' } } else { '' }
+                $pt = if ($typed) { 'folder' } elseif ($cur) { if ($cur.IsDir) { 'folder' } else { 'file' } } else { '' }
                 if ($prev.Count -gt $bodyH) { $pt += "  $($pscroll + 1)-$([Math]::Min($prev.Count, $pscroll + $bodyH)) of $($prev.Count)" }
                 # the focused side has the accent color; the divider lights up when the preview is focused
                 $onPrev = $focus -eq 'preview'
@@ -579,7 +583,7 @@ function NookPickProject($C) {
                     $i = $top + ($bodyH - 1 - $r)      # first item on the bottom row, right above the input
                     $left = ''
                     if ($i -lt $items.Count) {
-                        $it = $items[$i]; $on = $i -eq $sel
+                        $it = $items[$i]; $on = -not $typed -and $i -eq $sel
                         $ic = if ($it.IsRepo) { $icons.Repo } elseif ($it.IsDir) { $icons.Dir } else { $icons.File }
                         $icc = if ($it.IsDir) { $K.Acc } else { $K.Mut }
                         $mark = if ($on) { "$($K.Acc)$([char]0x276F) " } else { '  ' }
@@ -597,7 +601,7 @@ function NookPickProject($C) {
                 $room = [Math]::Max(10, $W - 6)
                 $shown = if ($text.Length -gt $room) { [char]0x2026 + $text.Substring($text.Length - $room + 1) } else { $text }
                 $placeholder = if (-not $text) { "$($K.Mut)  type a path, like Documents\" } else { '' }
-                $count = if ($items.Count) { "$($sel + 1)/$($items.Count)" } else { '0' }
+                $count = if ($typed) { "$($items.Count)" } elseif ($items.Count) { "$($sel + 1)/$($items.Count)" } else { '0' }
                 $inLine = " $($K.Kw)$([char]0x276F) $($K.Txt)$shown$($K.Acc)$([char]0x258F)$($K.Mut)$(if ($text) { $ghost })$placeholder"
                 $inW = NookWidth $inLine
                 $inLine += (' ' * [Math]::Max(1, $W - $inW - $count.Length - 2)) + "$($K.Mut)$count"
@@ -630,7 +634,10 @@ function NookPickProject($C) {
                     $dirty = $true
                     $steps = 3 * [Math]::Max(1, [int]([Math]::Abs($ev.Delta) / 120))
                     if ($overPreview) { $pscroll += $(if ($ev.Delta -lt 0) { $steps } else { -$steps }) }
-                    elseif ($n) { $sel = if ($ev.Delta -gt 0) { [Math]::Min($n - 1, $sel + 1) } else { [Math]::Max(0, $sel - 1) } }
+                    elseif ($n) {
+                        if (& $typedDir) { $sel = 0 } else { $sel = if ($ev.Delta -gt 0) { [Math]::Min($n - 1, $sel + 1) } else { [Math]::Max(0, $sel - 1) } }
+                        $picked = $true
+                    }
                 }
                 elseif ($ev.Kind -eq 'click' -and $inBody) {
                     $dirty = $true
@@ -638,7 +645,7 @@ function NookPickProject($C) {
                     elseif ($ev.X + 1 -le $listW + 1) {
                         $focus = 'list'
                         $i = $top + ($bodyH - 1 - ($ev.Y - 1))
-                        if ($i -ge 0 -and $i -lt $n) { $sel = $i }
+                        if ($i -ge 0 -and $i -lt $n) { $sel = $i; $picked = $true }
                     }
                 }
                 elseif ($ev.Kind -eq 'key') {
@@ -674,22 +681,27 @@ function NookPickProject($C) {
                             default { $focus = 'list' }                                    # left or esc
                         }
                     }
-                    elseif ($vk -eq 0x1B) { if ($isBrowse) { $text = ''; $sel = 0; $top = 0 } else { $done = $true } }
-                    elseif ($vk -eq 0x27) { if ($ghost) { $text += $ghost; $sel = 0; $top = 0 } }          # accept the grey suggestion
-                    elseif ($vk -eq 0x09) { if ($sel -lt $n) { $text = $items[$sel].Rel; $sel = 0; $top = 0 } }   # list what's inside
+                    elseif ($vk -eq 0x1B) { if ($isBrowse) { $text = ''; $sel = 0; $top = 0; $picked = $false } else { $done = $true } }
+                    elseif ($vk -eq 0x27) { if ($ghost) { $text += $ghost; $sel = 0; $top = 0; $picked = $false } }          # accept the grey suggestion
+                    elseif ($vk -eq 0x09) {
+                        if (& $typedDir) { if ($n) { $sel = 0; $picked = $true } }                             # inside a typed folder: tab picks the first entry
+                        elseif ($sel -lt $n) { $text = $items[$sel].Rel; $sel = 0; $top = 0; $picked = $false }   # list what's inside
+                    }
                     elseif ($vk -eq 0x26 -and $shift) { $pscroll-- }
                     elseif ($vk -eq 0x28 -and $shift) { $pscroll++ }
-                    elseif ($vk -eq 0x26) { if ($n) { $sel = ($sel + 1) % $n } }        # the list grows upward
-                    elseif ($vk -eq 0x28) { if ($n) { $sel = ($sel - 1 + $n) % $n } }
+                    elseif ($vk -in 0x26, 0x28 -and $n -and (& $typedDir)) { $sel = 0; $picked = $true }   # first arrow just picks the first entry
+                    elseif ($vk -eq 0x26) { if ($n) { $sel = ($sel + 1) % $n; $picked = $true } }        # the list grows upward
+                    elseif ($vk -eq 0x28) { if ($n) { $sel = ($sel - 1 + $n) % $n; $picked = $true } }
                     elseif ($vk -eq 0x22) { $pscroll += $half }
                     elseif ($vk -eq 0x21) { $pscroll -= $half }
                     elseif ($vk -eq 0x08) {
                         if ($ctrl) { $text = $text -replace '[^\\/]*[\\/]?$', '' } elseif ($text) { $text = $text.Substring(0, $text.Length - 1) }
-                        $sel = 0; $top = 0
+                        $sel = 0; $top = 0; $picked = $false
                     }
                     elseif ($vk -eq 0x0D -or $opener) {
                         # the highlighted entry, or what's typed when nothing is listed
-                        $target = if ($sel -lt $n) { $items[$sel].Abs } elseif ($text) { NookResolvePath $C $text } else { $null }
+                        $td = & $typedDir
+                        $target = if ($td) { $td } elseif ($sel -lt $n) { $items[$sel].Abs } elseif ($text) { NookResolvePath $C $text } else { $null }
                         if ($target -and ([IO.Directory]::Exists($target) -or [IO.File]::Exists($target))) {
                             $app = if ($opener) { $opener } else { $first }
                             $file = $null; $path = $target.TrimEnd('\')
@@ -703,7 +715,7 @@ function NookPickProject($C) {
                             $ask = @{ Path = $target.TrimEnd('\'); Kind = $kind; App = $(if ($opener) { $opener } else { $first }) }
                         }
                     }
-                    elseif (-not $alt -and -not $ctrl -and $ch -and -not [char]::IsControl($ch)) { $text += $ch; $sel = 0; $top = 0; $focus = 'list' }
+                    elseif (-not $alt -and -not $ctrl -and $ch -and -not [char]::IsControl($ch)) { $text += $ch; $sel = 0; $top = 0; $picked = $false; $focus = 'list' }
                 }
                 if ($done -or -not [NookInput]::Pending()) { break }
                 $ev = [NookInput]::Read(0)
