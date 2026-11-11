@@ -120,6 +120,7 @@ dashboard shows a short red line and `nook --help` lists the problems.
 | `Logo` | text file shown as the logo, or `''` for none |
 | `GitHub` | your GitHub user, shown as a ctrl+click link in the info layout (`''` hides it) |
 | `Theme` | colors as `#rrggbb` |
+| `Hints` | `$true` shows the key hint lines; `$false` shows only `? keys` (`h` on the `?` page toggles it and remembers it) |
 | `Recent` | `$true` puts the apps you used last first, `$false` keeps your order |
 | `Prayer` | `@{ City = '...'; Country = '...'; Method = 3 }`, or `City = ''` for off |
 | `Apps` | your apps (below) |
@@ -185,8 +186,10 @@ with the next prayer and a countdown, and `nook salat` prints them under the pro
 | Where | Keys |
 | --- | --- |
 | Quick picker | `←` `→` / `tab` move · `enter` open · an app's letter opens it · `esc` / `q` cancel |
-| Dashboard | arrows / `tab` move · `enter` open · an app's letter opens it · `o` projects · `t` layouts · `x` close the terminal tab (`ctrl+o` / `ctrl+t` / `ctrl+x` in the palette layout, where letters filter) · `q` / `esc` back to the prompt |
-| Project picker | type a name or path · `→` accept the suggestion · `tab` list inside (again to go deeper) · `↑` `↓` move · `ctrl+→` or a click: into the preview (`↑↓ PgUp PgDn Home End` scroll it, `←` / `esc` back) · mouse wheel scrolls what it's over · click selects · `ctrl+backspace` delete a folder · `enter` open · `alt` + key open with · `esc` cancel |
+| Dashboard | arrows / `tab` move · `enter` open · an app's letter opens it · `o` projects · `t` layouts · `x` close the terminal tab (`ctrl+o` / `ctrl+t` / `ctrl+x` in the palette layout, where letters filter) · `q` / `esc` back to the prompt · `?` shortcuts page |
+| Project picker | type a name or path · `→` accept the suggestion · `tab` list inside (again to go deeper) · `↑` `↓` move · `ctrl+→` or a click: into the preview (`↑↓ PgUp PgDn Home End` scroll it, `←` / `esc` back) · mouse wheel scrolls what it's over · click selects · `ctrl+backspace` remove the last part of the path · `enter` open (a typed path ending in `\` opens that folder until you pick an entry) · `alt` + key open with · `esc` cancel · `?` shortcuts page |
+
+On the `?` page, `h` hides or shows the hint lines at the bottom of each screen. Hidden, only `? keys` stays.
 
 ## Files
 
@@ -200,7 +203,7 @@ All in the TermNook folder (`~\.termnook`):
 | `install.ps1`, `README.md`, `LICENSE` | | yes |
 | `config.psd1` | **your settings** | never |
 | `my-*.txt` | your own logo(s) | never |
-| `style.txt`, `recent.txt`, `prayer.json`, `update.json` | saved while you use it | never |
+| `style.txt`, `hints.txt`, `recent.txt`, `prayer.json`, `update.json` | saved while you use it | never |
 
 ## Uninstall
 

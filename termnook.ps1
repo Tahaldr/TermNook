@@ -5,7 +5,7 @@
 # Load it from your profile:   . "$HOME\.termnook\termnook.ps1"
 # Then run:                    nook --help
 
-$script:NookVersion   = '1.2.1'
+$script:NookVersion   = '1.3.0'
 $script:NookRepo      = 'Tahaldr/TermNook'   # where releases are published
 $script:NookDir       = $PSScriptRoot
 $script:NookStateFile = Join-Path $PSScriptRoot 'style.txt'
@@ -173,6 +173,7 @@ function NookLoad([switch]$Force) {
         CfgTime = NookMTime $cfgPath; LogoPath = $logoPath; LogoTime = NookMTime $logoPath
         K = $K; Style = $style; GitHub = [string]$raw.GitHub; Apps = $apps.ToArray()
         Recent = if ($null -ne $raw.Recent) { [bool]$raw.Recent } else { $true }
+        Hints = if ($null -ne $raw.Hints) { [bool]$raw.Hints } else { $true }
         Prayer = if ($raw.Prayer -and $raw.Prayer.City) { [pscustomobject]@{ City = [string]$raw.Prayer.City; Country = [string]$raw.Prayer.Country; Method = $(if ($null -ne $raw.Prayer.Method) { [int]$raw.Prayer.Method } else { 3 }) } } else { $null }
         Logo = $logo.ToArray(); LogoW = $logoW; Warnings = $warn.ToArray()
         Projects = [pscustomobject]@{ Roots = $roots.ToArray(); OpenWith = $openWith.ToArray(); Search = $search; Skip = $skip }
@@ -186,6 +187,23 @@ function NookSavedStyle($C) {
         if ($script:NookStyles.Contains($v)) { return $v }
     }
     $C.Style
+}
+
+# --- key hints: full hint lines, or only the hard-to-remember keys (toggled with h on the ? page) ---
+# hints.txt holds 'on' / 'off' once toggled; it wins over Hints in config.psd1
+$script:NookHintsFile = Join-Path $PSScriptRoot 'hints.txt'
+
+function NookHintsOn($C) {
+    try {
+        if (Test-Path -LiteralPath $script:NookHintsFile) {
+            $v = (Get-Content -LiteralPath $script:NookHintsFile -TotalCount 1).Trim()
+            if ($v -eq 'on') { return $true } elseif ($v -eq 'off') { return $false }
+        }
+    } catch {}
+    $C.Hints
+}
+function NookSetHints([bool]$on) {
+    try { Set-Content -LiteralPath $script:NookHintsFile -Value $(if ($on) { 'on' } else { 'off' }) -Encoding utf8 } catch {}
 }
 
 # --- recent apps: recent.txt holds app names, last used first ---
@@ -533,6 +551,7 @@ function NookPickProject($C) {
     $note = ''; $result = $null; $dirty = $true; $lastW = 0; $lastH = 0; $focus = 'list'
     # typed path ending in \ and nothing picked yet (arrows / tab / mouse pick): enter opens that folder itself
     $picked = $false
+    $hintsOn = NookHintsOn $C; $showKeys = $false   # ? opens the shortcuts page
     $typedDir = { if ($text -and -not $picked -and $text -match '[\\/]$') { $p = NookResolvePath $C $text; if ([IO.Directory]::Exists($p)) { $p } } }
     if (-not (NookInputLoad)) { Write-Host 'nook: could not set up keyboard/mouse input for the picker' -ForegroundColor Red; return $null }
     # alternate screen, no autowrap (a too-long line is cut at the edge instead of pushing the screen)
@@ -541,7 +560,10 @@ function NookPickProject($C) {
     try {
         while ($true) {
             $W = [Console]::WindowWidth; $H = [Console]::WindowHeight
-            if ($dirty -or $W -ne $lastW -or $H -ne $lastH) {
+            if ($showKeys -and ($dirty -or $W -ne $lastW -or $H -ne $lastH)) {
+                [Console]::Write((NookKeysPage $C $W $H $hintsOn)); $lastW = $W; $lastH = $H; $dirty = $false
+            }
+            elseif ($dirty -or $W -ne $lastW -or $H -ne $lastH) {
                 # the list only changes when the text changes (scrolling doesn't recompute it)
                 if ($itemsKey -ne $text) {
                     # empty input: recent projects. Anything typed is a path (relative to Projects.Search)
@@ -608,11 +630,14 @@ function NookPickProject($C) {
                 [void]$fr.Append("$e[$row;1H").Append((NookCut $inLine $W))
                 # keys
                 $row++
-                $keys = if ($onPrev) {
-                    @("$([char]0x2191)$([char]0x2193) scroll", 'pgup/pgdn page', 'home/end', "$([char]0x2190) back to list", "enter $($first.Name)")
+                $alts = @($others | ForEach-Object { "alt+$($_.Key) $($_.Name)" })
+                $keys = if (-not $hintsOn) {
+                    @('? keys')   # hidden hints: only ? for the full list
+                } elseif ($onPrev) {
+                    @("$([char]0x2191)$([char]0x2193) scroll", 'pgup/pgdn page', 'home/end', "$([char]0x2190) back to list", "enter $($first.Name)", '? keys')
                 } else {
                     @("$([char]0x2192) accept", 'tab list', "$([char]0x2191)$([char]0x2193) move", "ctrl+$([char]0x2192) preview", "enter $($first.Name)") +
-                    @($others | ForEach-Object { "alt+$($_.Key) $($_.Name)" }) + @($(if ($isBrowse) { 'esc back' } else { 'esc cancel' }))
+                    $alts + @($(if ($isBrowse) { 'esc back' } else { 'esc cancel' }), '? keys')
                 }
                 $kl = "   $($K.Mut)$($keys -join '   ')"
                 if ($note) { $kl = "   $($K.Err)$note$($K.Mut)   $($keys -join '   ')"; $note = '' }
@@ -630,7 +655,13 @@ function NookPickProject($C) {
                 $n = $items.Count; $half = [Math]::Max(1, [int]($bodyH / 2))
                 $inBody = $ev.Y + 1 -ge 2 -and $ev.Y + 1 -le $bodyH + 1
                 $overPreview = $ev.X + 1 -gt $listW + 2
-                if ($ev.Kind -eq 'wheel') {
+                if ($showKeys) {
+                    if ($ev.Kind -eq 'key') {
+                        if ($ev.Ch -eq 'h') { $hintsOn = -not $hintsOn; NookSetHints $hintsOn } else { $showKeys = $false }
+                        $dirty = $true
+                    }
+                }
+                elseif ($ev.Kind -eq 'wheel') {
                     $dirty = $true
                     $steps = 3 * [Math]::Max(1, [int]([Math]::Abs($ev.Delta) / 120))
                     if ($overPreview) { $pscroll += $(if ($ev.Delta -lt 0) { $steps } else { -$steps }) }
@@ -648,6 +679,7 @@ function NookPickProject($C) {
                         if ($i -ge 0 -and $i -lt $n) { $sel = $i; $picked = $true }
                     }
                 }
+                elseif ($ev.Kind -eq 'key' -and $ev.Ch -eq '?' -and -not $ask) { $showKeys = $true; $dirty = $true }
                 elseif ($ev.Kind -eq 'key') {
                     $dirty = $true
                     $vk = $ev.Vk; $ch = $ev.Ch; $alt = $ev.Alt; $ctrl = $ev.Ctrl; $shift = $ev.Shift
@@ -1069,6 +1101,7 @@ function NookDashboard([string]$Style) {
     $e = [char]27
     $sel = 0; $filter = ''; $popup = $false; $popSel = 0; $perRow = 1; $found = @()
     $lastW = 0; $lastH = 0; $lastMin = -1; $dirty = $true; $liveRow = 0; $lastSec = -1
+    $hintsOn = NookHintsOn $C
     NookCursor $false
     try {
         while ($true) {
@@ -1100,7 +1133,9 @@ function NookDashboard([string]$Style) {
                     $liveAt = $foot.Count + $pbox.Live
                     $foot.AddRange([string[]]@(NookBlock $pbox.Lines $W)); $foot.Add('')
                 } elseif ($Style -ne 'info') { $foot.AddRange([string[]]@(NookBlock @("$($K.Mut)$date$($K.R)") $W)) }
-                $foot.AddRange([string[]]@(NookBlock @("$($K.Mut)$help   $($K.Hot)$hot$($K.R)") $W))
+                # hidden hints: only ? for the full list
+                $hl = if ($hintsOn) { "$($K.Mut)$help   $($K.Hot)$hot   $($K.Mut)? keys$($K.R)" } else { "$($K.Mut)? keys$($K.R)" }
+                $foot.AddRange([string[]]@(NookBlock @($hl) $W))
                 $nv = NookNewVersion
                 if ($nv) { $foot.AddRange([string[]]@(NookBlock @("$($K.Hot)$([char]0x2191) TermNook $nv is out$($K.Mut): run  $($K.Txt)nook update$($K.Mut)  (your settings stay)$($K.R)") $W)) }
                 if ($C.Warnings.Count) {
@@ -1148,6 +1183,14 @@ function NookDashboard([string]$Style) {
                     try { Set-Content -LiteralPath $script:NookStateFile -Value $Style -Encoding utf8 } catch {}
                 }
                 elseif ($key.Key -eq 'Escape' -or $ch -eq 't' -or $ctrlT) { $popup = $false }
+                continue
+            }
+            if ($ch -eq '?') {
+                # shortcuts page: h shows / hides the hint lines, any other key goes back
+                while ($true) {
+                    [Console]::Write((NookKeysPage $C ([Console]::WindowWidth) ([Console]::WindowHeight) $hintsOn))
+                    if ([Console]::ReadKey($true).KeyChar -eq 'h') { $hintsOn = -not $hintsOn; NookSetHints $hintsOn } else { break }
+                }
                 continue
             }
             if ($ctrlT -or ($Style -ne 'palette' -and $ch -eq 't')) {
@@ -1214,7 +1257,7 @@ function NookQuick {
     $items = @($C.Apps | Where-Object { $_.Run })       # "back to the prompt" items make no sense here
     if (-not $items.Count) { Write-Host 'nook: no apps with a Run command in config.psd1' -ForegroundColor Red; return }
     $n = $items.Count; $sel = 0; $gap = 3; $lead = 2
-    $help = "$([char]0x2190)$([char]0x2192) move  enter open  esc cancel"
+    $help = "$([char]0x2190)$([char]0x2192) move  enter open  esc cancel"; $hintsOn = NookHintsOn $C
     $more = [char]0x2026
 
     NookCursor $false
@@ -1248,7 +1291,7 @@ function NookQuick {
                 if ($i -lt $last) { $line += ' ' * $gap; $pos += $gap }
             }
             if ($last -lt $n - 1) { $line += " $($K.Mut)$more$($K.R)"; $pos += 2 }
-            if ($pos + 4 + $help.Length -lt $W) { $line += "    $($K.Mut)$help$($K.R)" }
+            if ($hintsOn -and $pos + 4 + $help.Length -lt $W) { $line += "    $($K.Mut)$help$($K.R)" }   # hidden hints: the underlined letters are enough
 
             $it = $items[$sel]
             $under = (' ' * $selStart) + "$($K.Acc)$([string][char]0x2501 * $it.Name.Length)$($K.R)"
@@ -1283,12 +1326,49 @@ function NookQuick {
 # ===========================================================================
 # Help
 # ===========================================================================
+
+# Every key, by screen: shared by nook --help and the ? shortcuts page
+function NookKeyLines($C) {
+    $K = $C.K; $t = $K.Txt; $m = $K.Mut; $y = $K.Hot; $h = $K.Kw; $r = $K.R
+    $keys = (@($C.Apps | Where-Object Key | ForEach-Object Key)) -join ' '
+    $qkeys = (@($C.Apps | Where-Object { $_.Key -and $_.Run } | ForEach-Object Key)) -join ' '
+    $alts = @($C.Projects.OpenWith | Select-Object -Skip 1 | Where-Object Key | ForEach-Object { "$($t)alt+$($_.Key)$r $($_.Name)" }) -join '   '
+    $first = if (@($C.Projects.OpenWith).Count) { @($C.Projects.OpenWith)[0].Name } else { 'the first app' }
+    @(
+        "  $($h)QUICK PICKER KEYS$r  $m(nook)$r"
+        "    $($t)$([char]0x2190)$([char]0x2192)$r / $($t)tab$r move   $($t)enter$r open   $($t)$qkeys$r open directly   $($t)esc$r / $($t)q$r cancel"
+        ''
+        "  $($h)DASHBOARD KEYS$r  $m(nook -d)$r"
+        "    $($t)arrows$r / $($t)tab$r move   $($t)enter$r open   $($t)$keys$r open directly   $($t)q$r / $($t)esc$r back to the prompt"
+        "    $($y)o$r projects   $($y)t$r themes   $($y)x$r close the terminal tab   ($($y)ctrl+o$r / $($y)ctrl+t$r / $($y)ctrl+x$r in the palette style)"
+        "    $($t)?$r this shortcuts page"
+        ''
+        "  $($h)PROJECT PICKER KEYS$r  $m(nook -p, or o in the dashboard)$r"
+        "    type a name or path   $($t)$([char]0x2192)$r accept the grey suggestion   $($t)tab$r list inside   $($t)$([char]0x2191)$([char]0x2193)$r move   $($t)ctrl+backspace$r remove the last part"
+        "    $($t)enter$r open in $first   $(if ($alts) { "$alts   " })$($t)esc$r back / cancel"
+        "    a typed folder path ending in \ opens that folder; pick an entry inside first to open it instead"
+        "    $($t)ctrl+$([char]0x2192)$r / click into the preview: $($t)$([char]0x2191)$([char]0x2193)$r scroll   $($t)pgup/pgdn$r page   $($t)home/end$r   $($t)$([char]0x2190)$r back to the list"
+        "    $($t)shift+$([char]0x2191)$([char]0x2193)$r / $($t)pgup/pgdn$r scroll the preview from the list   mouse wheel scrolls what it is over"
+        "    $($t)?$r this shortcuts page"
+        ''
+    )
+}
+
+# The ? shortcuts page (dashboard and project picker): every key, and h to show / hide the hint lines
+function NookKeysPage($C, [int]$W, [int]$H, [bool]$hintsOn) {
+    $K = $C.K; $e = [char]27
+    $state = if ($hintsOn) { 'shown' } else { 'hidden (only ? keys)' }
+    $lines = @('', "  $($K.Acc)Shortcuts$($K.R)", '') + @(NookKeyLines $C) +
+        @("  $($K.Mut)hint lines: $($K.Txt)$state$($K.R)",
+          '', "  $($K.Hot)h$($K.Mut) $(if ($hintsOn) { 'hide' } else { 'show' }) hint lines   any other key: back$($K.R)")
+    $sb = [System.Text.StringBuilder]::new("$e[H$e[J")
+    for ($i = 0; $i -lt [Math]::Min($lines.Count, $H); $i++) { [void]$sb.Append("$e[$($i + 1);1H").Append((NookCut $lines[$i] $W)) }
+    $sb.ToString()
+}
 function NookHelp {
     [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
     $C = NookLoad; $K = $C.K
     $a = $K.Acc; $t = $K.Txt; $m = $K.Mut; $y = $K.Hot; $h = $K.Kw; $r = $K.R
-    $keys = (@($C.Apps | Where-Object Key | ForEach-Object Key)) -join ' '
-    $qkeys = (@($C.Apps | Where-Object { $_.Key -and $_.Run } | ForEach-Object Key)) -join ' '
     $o = [System.Collections.Generic.List[string]]::new()
     $o.AddRange([string[]]@(
         ''
@@ -1307,20 +1387,14 @@ function NookHelp {
         "    $($t)nook --version$r          $m show the version$r"
         "    $($t)nook -h$r, $($t)--help$r          $m show this help$r"
         ''
-        "  $($h)QUICK PICKER KEYS$r"
-        "    $($t)$([char]0x2190)$([char]0x2192)$r / $($t)tab$r move   $($t)enter$r open   $($t)$qkeys$r open directly   $($t)esc$r / $($t)q$r cancel"
-        ''
-        "  $($h)DASHBOARD KEYS$r"
-        "    $($t)arrows$r / $($t)tab$r move   $($t)enter$r open   $($t)$keys$r open directly   $($t)q$r / $($t)esc$r back to the prompt"
-        "    $($y)o$r projects   $($y)t$r themes   $($y)x$r close the terminal tab   ($($y)ctrl+o$r / $($y)ctrl+t$r / $($y)ctrl+x$r in the palette style)"
-        ''
-        "  $($h)PROJECT PICKER KEYS$r"
-        "    type a name or path   $($t)→$r accept suggestion   $($t)tab$r list inside   $($t)↑↓$r move   $($t)ctrl+→$r / click into the preview ($($t)←$r back)   mouse wheel scrolls what it is over   $($t)enter$r open in $(@($C.Projects.OpenWith)[0].Name)   $(@($C.Projects.OpenWith | Select-Object -Skip 1 | Where-Object Key | ForEach-Object { "$($t)alt+$($_.Key)$r $($_.Name)" }) -join '   ')   $($t)esc$r cancel"
-        ''
+    ))
+    $o.AddRange([string[]]@(NookKeyLines $C))
+    $o.AddRange([string[]]@(
         "  $($h)FILES$r  $m($($script:NookDir))$r"
         "    $($t)config.psd1$r  $m apps, keys, icons, colors, logo, GitHub user$r"
         "    $($t)logo.txt$r     $m the logo$r"
         "    $($t)style.txt$r    $m the style you last picked with t$r"
+        "    $($t)hints.txt$r    $m hint lines shown or hidden (h on the ? page; wins over Hints in config.psd1)$r"
         "    $($t)recent.txt$r   $m apps you opened, last used first (Recent = `$false in config.psd1 turns it off)$r"
         "    $($t)prayer.json$r  $m this month's prayer times (downloaded again each month, delete to refresh)$r"
         "    $($t)termnook.ps1$r $m the program itself$r"

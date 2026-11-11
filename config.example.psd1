@@ -25,6 +25,11 @@
         Hot      = '#e7c787'   # the "t themes" shortcut
     }
 
+    # Key hint lines at the bottom of each screen. $false shows only  ? keys  (the full list).
+    # Toggle any time with  h  on the  ?  page,
+    # which saves your pick in hints.txt (it wins over this).
+    Hints = $true
+
     # Put the apps you used last first (remembered in recent.txt). $false keeps the order below.
     Recent = $false
 
