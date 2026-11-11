@@ -37,7 +37,7 @@
     # Your apps, in order. Add or remove as many as you like; every layout adapts.
     #   Name  label shown everywhere (required)
     #   Hint  short description
-    #   Key   one letter that opens it directly ('t', 'q' and 'o' are taken by TermNook)
+    #   Key   one letter that opens it directly ('t', 'q', 'o' and 'x' are taken by TermNook)
     #   Icon  Nerd Font code from https://www.nerdfonts.com/cheat-sheet, e.g. 0xF0570 for f0570. Optional
     #   Run   the command to run, exactly as you'd type it. Leave Run out to make a "back to the prompt" item
     Apps = @(

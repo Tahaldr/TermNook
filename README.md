@@ -139,7 +139,7 @@ Apps = @(
 ```
 
 - **Name** (required): the label. **Hint**: the small description under it.
-- **Key**: one letter that opens it directly. `t`, `q` and `o` are taken by TermNook.
+- **Key**: one letter that opens it directly. `t`, `q`, `o` and `x` are taken by TermNook.
 - **Icon**: a code from the [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet): `f36f`
   there is `0xF36F` here.
 - **Run**: the command, exactly as you'd type it in PowerShell (`code .`, `lazygit`, `start https://...`,
@@ -185,7 +185,7 @@ with the next prayer and a countdown, and `nook salat` prints them under the pro
 | Where | Keys |
 | --- | --- |
 | Quick picker | `←` `→` / `tab` move · `enter` open · an app's letter opens it · `esc` / `q` cancel |
-| Dashboard | arrows / `tab` move · `enter` open · an app's letter opens it · `o` projects · `t` layouts (`ctrl+o` / `ctrl+t` in the palette layout, where letters filter) · `q` / `esc` back |
+| Dashboard | arrows / `tab` move · `enter` open · an app's letter opens it · `o` projects · `t` layouts · `x` close the terminal tab (`ctrl+o` / `ctrl+t` / `ctrl+x` in the palette layout, where letters filter) · `q` / `esc` back to the prompt |
 | Project picker | type a name or path · `→` accept the suggestion · `tab` list inside (again to go deeper) · `↑` `↓` move · `ctrl+→` or a click: into the preview (`↑↓ PgUp PgDn Home End` scroll it, `←` / `esc` back) · mouse wheel scrolls what it's over · click selects · `ctrl+backspace` delete a folder · `enter` open · `alt` + key open with · `esc` cancel |
 
 ## Files

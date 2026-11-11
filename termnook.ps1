@@ -5,12 +5,12 @@
 # Load it from your profile:   . "$HOME\.termnook\termnook.ps1"
 # Then run:                    nook --help
 
-$script:NookVersion   = '1.1.0'
+$script:NookVersion   = '1.2.0'
 $script:NookRepo      = 'Tahaldr/TermNook'   # where releases are published
 $script:NookDir       = $PSScriptRoot
 $script:NookStateFile = Join-Path $PSScriptRoot 'style.txt'
 $script:NookStyles    = [ordered]@{ cards = 'Card row'; info = 'Info panel'; palette = 'Command palette'; list = 'Classic list' }
-$script:NookReserved  = @('t', 'q', 'o')
+$script:NookReserved  = @('t', 'q', 'o', 'x')
 $script:NookCache     = $null
 
 $script:NookDefaults = @{
@@ -1049,6 +1049,7 @@ function NookThemesPopup($C, [int]$popSel, [string]$current, [int]$W, [int]$H) {
 # Dashboard (nook -dashboard)
 # ===========================================================================
 function NookDashboard([string]$Style) {
+    $closeTab = $false
     [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
     $C = NookLoad
     if (-not $Style) { $Style = NookSavedStyle $C }
@@ -1072,9 +1073,9 @@ function NookDashboard([string]$Style) {
                 }
                 $perRow = $view.PerRow
                 $help = switch ($Style) {
-                    'list'    { "$([char]0x2191)$([char]0x2193) move   enter open   q shell" }
-                    'palette' { "type to filter   $([char]0x2191)$([char]0x2193) move   enter open   esc clear / shell" }
-                    default   { if ($perRow -lt $n) { "arrows move   enter open   q shell" } else { "$([char]0x2190)$([char]0x2192) move   enter open   q shell" } }
+                    'list'    { "$([char]0x2191)$([char]0x2193) move   enter open   q shell   x close tab" }
+                    'palette' { "type to filter   $([char]0x2191)$([char]0x2193) move   enter open   esc clear / shell   ctrl+x close tab" }
+                    default   { if ($perRow -lt $n) { "arrows move   enter open   q shell   x close tab" } else { "$([char]0x2190)$([char]0x2192) move   enter open   q shell   x close tab" } }
                 }
                 $hot = if ($Style -eq 'palette') { 'ctrl+o projects   ctrl+t themes' } else { 'o projects   t themes' }
                 $foot = [System.Collections.Generic.List[string]]::new()
@@ -1140,6 +1141,8 @@ function NookDashboard([string]$Style) {
             if ($ctrlT -or ($Style -ne 'palette' -and $ch -eq 't')) {
                 $popup = $true; $popSel = [Math]::Max(0, [array]::IndexOf($names, $Style)); continue
             }
+            $ctrlX = $key.Key -eq 'X' -and ($key.Modifiers -band [ConsoleModifiers]::Control)
+            if ($ctrlX -or ($Style -ne 'palette' -and $ch -eq 'x')) { $closeTab = $true; break }
             $ctrlO = $key.Key -eq 'O' -and ($key.Modifiers -band [ConsoleModifiers]::Control)
             if ($ctrlO -or ($Style -ne 'palette' -and $ch -eq 'o')) {
                 $proj = NookPickProject $C
@@ -1185,6 +1188,7 @@ function NookDashboard([string]$Style) {
         NookCursor $true
         Clear-Host
     }
+    if ($closeTab) { [Environment]::Exit(0) }   # ends this shell, so the terminal closes the tab
 }
 
 # ===========================================================================
@@ -1296,7 +1300,7 @@ function NookHelp {
         ''
         "  $($h)DASHBOARD KEYS$r"
         "    $($t)arrows$r / $($t)tab$r move   $($t)enter$r open   $($t)$keys$r open directly   $($t)q$r / $($t)esc$r back to the prompt"
-        "    $($y)o$r projects   $($y)t$r themes   ($($y)ctrl+o$r / $($y)ctrl+t$r in the palette style)"
+        "    $($y)o$r projects   $($y)t$r themes   $($y)x$r close the terminal tab   ($($y)ctrl+o$r / $($y)ctrl+t$r / $($y)ctrl+x$r in the palette style)"
         ''
         "  $($h)PROJECT PICKER KEYS$r"
         "    type a name or path   $($t)→$r accept suggestion   $($t)tab$r list inside   $($t)↑↓$r move   $($t)ctrl+→$r / click into the preview ($($t)←$r back)   mouse wheel scrolls what it is over   $($t)enter$r open in $(@($C.Projects.OpenWith)[0].Name)   $(@($C.Projects.OpenWith | Select-Object -Skip 1 | Where-Object Key | ForEach-Object { "$($t)alt+$($_.Key)$r $($_.Name)" }) -join '   ')   $($t)esc$r cancel"
