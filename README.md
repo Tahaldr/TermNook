@@ -11,9 +11,9 @@ your colors, driven by one settings file. Command: `nook`.
                  Sunday 9 November · 23:40
 
    ╭──────────╮ ╭──────────╮ ╭──────────╮ ╭──────────╮ ╭──────────╮
-   │    Nvim  │ │  VS Code │ │    Git   │ │   Files  │ │   Shell  │
-   │  editor  │ │   code   │ │  lazygit │ │ explorer │ │  prompt  │
-   │    n     │ │    v     │ │    g     │ │    f     │ │    s     │
+   │    Nvim  │ │  VS Code │ │    Git   │ │   Files  │ │  Monitor │
+   │  editor  │ │   code   │ │  lazygit │ │ explorer │ │   btop   │
+   │    n     │ │    v     │ │    g     │ │    f     │ │    m     │
    ╰──────────╯ ╰──────────╯ ╰──────────╯ ╰──────────╯ ╰──────────╯
       ←→ move · enter open · a letter opens its app · o projects · t layouts · q back
 ```
@@ -135,7 +135,6 @@ Apps = @(
     @{ Name = 'Nvim';   Hint = 'editor';  Key = 'n'; Icon = 0xF36F;  Run = 'nvim .' }
     @{ Name = 'Notes';  Hint = 'obsidian'; Key = 'b'; Icon = 0xF0B6E; Run = 'obsidian' }
     @{ Name = 'Music';  Hint = 'spotify'; Key = 'm'; Icon = 0xF04C7; Run = 'start spotify:' }
-    @{ Name = 'Shell';  Hint = 'prompt';  Key = 's'; Icon = 0xEBC7 }      # no Run: back to the prompt
 )
 ```
 
@@ -144,7 +143,7 @@ Apps = @(
 - **Icon**: a code from the [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet): `f36f`
   there is `0xF36F` here.
 - **Run**: the command, exactly as you'd type it in PowerShell (`code .`, `lazygit`, `start https://...`,
-  a script path…). Leave it out for a "back to the prompt" item.
+  a script path…). You don't need a "back to the prompt" app: `q` / `esc` already does that.
 
 Add as many as you like; every layout adapts and wraps.
 
@@ -161,7 +160,7 @@ Projects = @{
 
 In the project picker, type a name or a path. A path that doesn't exist yet is offered to be created (`y`): a name with an extension (`notes.md`) becomes a file, anything else a folder, with every missing folder on the way. Then: `→` accepts the grey suggestion, `tab` lists what's
 inside, `enter` opens the project in the first `OpenWith` app and `alt` + a key opens it in another.
-An `OpenWith` app without `Run` just goes to the folder.
+`Shell` is built in: it just goes to the folder (alt+s).
 
 ### Layouts, colors and logo
 

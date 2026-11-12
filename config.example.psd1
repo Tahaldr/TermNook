@@ -44,21 +44,20 @@
     #   Hint  short description
     #   Key   one letter that opens it directly ('t', 'q', 'o' and 'x' are taken by TermNook)
     #   Icon  Nerd Font code from https://www.nerdfonts.com/cheat-sheet, e.g. 0xF0570 for f0570. Optional
-    #   Run   the command to run, exactly as you'd type it. Leave Run out to make a "back to the prompt" item
+    #   Run   the command to run, exactly as you'd type it. (q or esc already goes back to the prompt)
     Apps = @(
         @{ Name = 'Nvim';     Hint = 'editor';   Key = 'n'; Icon = 0xF36F;  Run = 'nvim .' }
         @{ Name = 'VS Code';  Hint = 'code';     Key = 'v'; Icon = 0xF0A1E; Run = 'code .' }
         @{ Name = 'Git';      Hint = 'lazygit';  Key = 'g'; Icon = 0xF02A2; Run = 'lazygit' }
         @{ Name = 'Files';    Hint = 'explorer'; Key = 'f'; Icon = 0xF024B; Run = 'explorer .' }
         @{ Name = 'Monitor';  Hint = 'btop';     Key = 'm'; Icon = 0xF0128; Run = 'btop' }
-        @{ Name = 'Shell';    Hint = 'prompt';   Key = 's'; Icon = 0xEBC7 }
     )
 
     # Project picker (nook -p, or  o  in the dashboard).
     #   Roots     folders searched for projects (a folder with .git, package.json, go.mod, ...)
     #             Folders you visit often (zoxide) are listed first.
     #   OpenWith  apps (names from Apps above) offered for a project. The first one opens on Enter,
-    #             the others with alt + their key (e.g. alt+v). An app without Run just goes to the folder.
+    #             the others with alt + their key (e.g. alt+v). 'Shell' (built in) just goes to the folder.
     #   Search    paths you type start from this folder (~\ and C:\ paths work too)
     #   Skip      folder names not suggested until you type the start of their name
     Projects = @{

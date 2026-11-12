@@ -5,7 +5,7 @@
 # Load it from your profile:   . "$HOME\.termnook\termnook.ps1"
 # Then run:                    nook --help
 
-$script:NookVersion   = '1.3.0'
+$script:NookVersion   = '1.3.1'
 $script:NookRepo      = 'Tahaldr/TermNook'   # where releases are published
 $script:NookDir       = $PSScriptRoot
 $script:NookStateFile = Join-Path $PSScriptRoot 'style.txt'
@@ -145,6 +145,9 @@ function NookLoad([switch]$Force) {
     foreach ($nm in @($pr.OpenWith)) {
         if (-not $nm) { continue }
         $hit = $apps | Where-Object Name -eq $nm | Select-Object -First 1
+        if (-not $hit -and $nm -eq 'Shell') {   # built in: just go to the folder
+            $hit = [pscustomobject]@{ Name = 'Shell'; Hint = 'prompt'; Key = 's'; Icon = [char]::ConvertFromUtf32(0xEBC7); Run = '' }
+        }
         if ($hit) { $openWith.Add($hit) } else { $warn.Add("Projects.OpenWith: no app named '$nm'") }
     }
     if (-not $openWith.Count) { foreach ($a in $apps) { if ($a.Run -match '(^|\s)\.$') { $openWith.Add($a) } } }
