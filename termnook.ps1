@@ -5,7 +5,7 @@
 # Load it from your profile:   . "$HOME\.termnook\termnook.ps1"
 # Then run:                    nook --help
 
-$script:NookVersion   = '1.3.1'
+$script:NookVersion   = '1.3.2'
 $script:NookRepo      = 'Tahaldr/TermNook'   # where releases are published
 $script:NookDir       = $PSScriptRoot
 $script:NookStateFile = Join-Path $PSScriptRoot 'style.txt'
