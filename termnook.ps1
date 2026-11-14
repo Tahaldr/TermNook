@@ -475,8 +475,11 @@ function NookPreview([string]$path, $cache) {
             $size = ([IO.FileInfo]$path).Length
             if ($size -gt 2MB) { $lines = @("($([Math]::Round($size / 1MB, 1)) MB, too large to preview)") }
             else {
-                $head = [IO.File]::ReadAllBytes($path) | Select-Object -First 4096
-                if ($head -contains 0) { $lines = @("(binary file, $([Math]::Round($size / 1KB, 1)) KB)") }
+                # only the first 4 KB tell if it's binary (piping the whole file through Select-Object took seconds)
+                $head = [byte[]]::new(4096)
+                $fs = [IO.File]::OpenRead($path)
+                try { $got = $fs.Read($head, 0, $head.Length) } finally { $fs.Dispose() }
+                if ([Array]::IndexOf($head, [byte]0, 0, $got) -ge 0) { $lines = @("(binary file, $([Math]::Round($size / 1KB, 1)) KB)") }
                 elseif (Get-Command bat -ErrorAction SilentlyContinue) {
                     $lines = @(bat --color=always --style=numbers --theme=OneHalfDark --paging=never --tabs=4 --line-range=:1000 -- $path 2>$null)
                 } else {
